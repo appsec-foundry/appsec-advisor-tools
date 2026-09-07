@@ -74,10 +74,14 @@ threat-model:
     OUTPUT_DIR: "$CI_PROJECT_DIR/report"
     OUTPUT_GIT_USER: x-access-token   # GitHub wants this name, GitLab oauth2
     GIT_STRATEGY: clone
+  # The plugin clone and nothing else. The same cache directory also holds the
+  # clone of the scanned repository and the clone of the report repository, and
+  # a cache is readable by every job of this project — a private target would
+  # end up where anyone who may start a pipeline here can fetch it.
   cache:
     key: appsec-advisor-$ADVISOR_REF
     paths:
-      - .cache/appsec-advisor      # the plugin clone, so every run does not refetch it
+      - .cache/appsec-advisor/appsec-advisor
   # Never on its own. A run costs money and reads a repository someone named, so
   # it starts where a person names it: CI/CD → Pipelines → Run pipeline. A push,
   # a merge request, a schedule or an API trigger creates no pipeline with this
