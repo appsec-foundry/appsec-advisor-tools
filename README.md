@@ -1,5 +1,7 @@
 # appsec-advisor-tools
 
+[![appsec-advisor 0.6.0-beta.4](https://img.shields.io/badge/appsec--advisor-0.6.0--beta.4-blue)](https://github.com/appsec-foundry/appsec-advisor/releases/tag/v0.6.0-beta.4)
+
 Two companion scripts for [appsec-foundry/appsec-advisor](https://github.com/appsec-foundry/appsec-advisor), the Claude Code plugin that builds threat models from source code. The plugin is normally driven from an interactive Claude Code session. These scripts run one of its skills without a session, from a terminal, a cron job or a CI pipeline.
 
 ## create-threat-model.sh
@@ -85,7 +87,7 @@ Repository profile — /home/mrohr/myapp
 
 The launcher runs this as its fifth step and writes the JSON to `.target-profile.json` in the output directory. `./create-threat-model.sh --target-dir ~/myapp --profile-only` stops there, which is the cheapest way to size up an unfamiliar repository.
 
-This file is a copy of the plugin's `scripts/repo_profile.py`, kept next to the launcher so the profile also works with an older pinned plugin ref. The plugin is where it is maintained and tested.
+This file is a copy of the plugin's `scripts/analyzers/repo_profile.py`, kept next to the launcher so the profile also works with an older pinned plugin ref. The plugin is where it is maintained and tested.
 
 ## Requirements
 
