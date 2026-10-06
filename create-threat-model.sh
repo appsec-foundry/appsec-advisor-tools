@@ -380,7 +380,7 @@ Options:
                          question; unattended or with --yes, the run stops.
   --context     <src>    Business context for this run: http(s) URL or file path.
                          Without it the run passes --skip-context, so a
-                         docs/business-context.md in the target stays unread.
+                         docs/security/business-context.md in the target stays unread.
   --url         <url>    Base URL of the running target, e.g. http://localhost:3000.
                          Set it and the run also writes pentest-tasks.yaml
                          (Strix format) for that URL. Omitted = no pentest tasks.
@@ -1542,6 +1542,15 @@ provision_local() {
 if [ "$ADVISOR_SOURCE" = "official" ]; then provision_official; else provision_local; fi
 
 [ -f "$PLUGIN_DIR/.claude-plugin/plugin.json" ] || die "not a plugin directory: $PLUGIN_DIR"
+# Since 0.6.0-beta.4 the plugin keeps its scripts in subdirectories; a pinned
+# older ADVISOR_REF still has them flat in scripts/. Ask for the new place
+# first and take the old one, so either layout is found.
+plugin_script() {
+    local sub="$1" name="$2"
+    if [ -f "$PLUGIN_DIR/scripts/$sub/$name" ]; then printf '%s\n' "$PLUGIN_DIR/scripts/$sub/$name"
+    elif [ -f "$PLUGIN_DIR/scripts/$name" ]; then printf '%s\n' "$PLUGIN_DIR/scripts/$name"
+    else return 1; fi
+}
 RUNNER="$PLUGIN_DIR/scripts/run-headless.sh"
 # --profile-only never reaches the runner, so a plugin that cannot scan is no
 # reason to refuse a directory walk.
@@ -1955,11 +1964,11 @@ step "Profile target"
 # or JSON, never both — the same walk twice.
 #
 # The copy next to this launcher wins: it makes the profile work with any pinned
-# ADVISOR_REF. It is a copy of the plugin's scripts/repo_profile.py, which is
+# ADVISOR_REF. It is a copy of the plugin's scripts/analyzers/repo_profile.py, which is
 # where the file is maintained and tested; the provisioned plugin is the
 # fallback when the companion is absent.
 PROFILE_SCRIPT="$SCRIPT_DIR/repo_profile.py"
-[ -f "$PROFILE_SCRIPT" ] || PROFILE_SCRIPT="$PLUGIN_DIR/scripts/repo_profile.py"
+[ -f "$PROFILE_SCRIPT" ] || PROFILE_SCRIPT="$(plugin_script analyzers repo_profile.py)" || PROFILE_SCRIPT=""
 PROFILE_JSON="$OUTPUT_DIR/.target-profile.json"
 if [ ! -f "$PROFILE_SCRIPT" ]; then
     # No companion, and a pinned older ADVISOR_REF predates the script in the
@@ -2012,7 +2021,7 @@ if [ "$DISCARD_STAGE1" = "1" ]; then ARGS+=(--force); fi
 [ -n "$MAX_BUDGET" ]            && ARGS+=(--hard-budget "$MAX_BUDGET")
 [ -n "$FAIL_ON" ]               && ARGS+=(--fail-on "$FAIL_ON")
 # No context source, no context: --skip-context settles it for the run instead
-# of leaving the analysis to pick up whatever docs/business-context.md the
+# of leaving the analysis to pick up whatever docs/security/business-context.md the
 # target repository happens to carry.
 if [ -n "$CONTEXT_SRC" ]; then ARGS+=(--context "$CONTEXT_SRC"); else ARGS+=(--skip-context); fi
 [ -n "$PENTEST_URL" ]           && ARGS+=(--pentest-tasks --pentest-format strix --pentest-target "$PENTEST_URL")
@@ -2070,9 +2079,10 @@ for name in threat-model.md threat-model.yaml threat-model.sarif.json \
 done
 [ "$found_any" = "1" ] || warn "no report artifacts were written"
 
-if [ -f "$OUTPUT_DIR/threat-model.yaml" ] && [ -f "$PLUGIN_DIR/scripts/run_summary.py" ]; then
+RUN_SUMMARY="$(plugin_script runtime run_summary.py)" || RUN_SUMMARY=""
+if [ -f "$OUTPUT_DIR/threat-model.yaml" ] && [ -n "$RUN_SUMMARY" ]; then
     printf '\n'
-    python3 "$PLUGIN_DIR/scripts/run_summary.py" findings "$OUTPUT_DIR/threat-model.yaml" 2>/dev/null || true
+    python3 "$RUN_SUMMARY" findings "$OUTPUT_DIR/threat-model.yaml" 2>/dev/null || true
 fi
 
 # ══════════════════════ 8. Publish the report ════════════════════════════════
@@ -2154,14 +2164,15 @@ if [ -n "$OUTPUT_REPO" ]; then
     # plugin's own scanner first and a hit keeps it out. No scanner, nothing
     # published: unchecked is not a state these files may travel in.
     if [ "$SAVE_RUNTIME_FILES" = "1" ]; then
-        if [ ! -f "$PLUGIN_DIR/scripts/secret_scan.py" ]; then
+        SECRET_SCAN="$(plugin_script validators secret_scan.py)" || SECRET_SCAN=""
+        if [ -z "$SECRET_SCAN" ]; then
             warn "the provisioned appsec-advisor ($ADVISOR_VERSION) has no secret_scan.py — the runtime files stay out of $OUTPUT_REPO unchecked"
         else
             for pattern in $RUNTIME_FILES; do
                 for src in "$OUTPUT_DIR"/$pattern; do
                     [ -f "$src" ] || continue
                     name="${src##*/}"
-                    if ! python3 "$PLUGIN_DIR/scripts/secret_scan.py" "$src" >/dev/null 2>&1; then
+                    if ! python3 "$SECRET_SCAN" "$src" >/dev/null 2>&1; then
                         warn "$name reads like it carries an unmasked secret — not published (it stays in $OUTPUT_DIR)"
                         continue
                     fi

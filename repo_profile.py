@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""repo_profile.py — deterministic repository profile: size, tech stack, layout.
+"""analyzers/repo_profile.py — deterministic repository profile: size, tech stack, layout.
 
 Answers "what am I about to scan?" before a run costs anything: how large the
 working tree is, which languages carry it, which build manifests it declares
@@ -7,7 +7,7 @@ and whether those sit in one root or many. No agents, no LLM, no network, and
 nothing written into the target repository.
 
 This is not a security check. It says nothing about findings, severity or risk
-— ``security_score.py`` and ``/appsec-advisor:create-threat-model`` do that.
+— ``analyzers/security_score.py`` and ``/appsec-advisor:create-threat-model`` do that.
 
 Determinism
 -----------
@@ -33,6 +33,14 @@ on who built what before the profile ran.
 """
 
 from __future__ import annotations
+
+# Direct CLI execution must resolve the same packages as imports from scripts/.
+import sys as _sys
+from pathlib import Path as _Path
+
+if not __package__:
+    _sys.path.insert(0, str(_Path(__file__).resolve().parents[1]))
+
 
 import argparse
 import json
@@ -463,6 +471,7 @@ def _files(count: int) -> str:
 
 
 def render_text(result: dict[str, Any]) -> str:
+    """Console view of a profile; languages below ``MIN_LANGUAGE_SHARE`` are folded into one line."""
     totals = result["totals"]
     lines = [f"Repository profile — {result['repo']}"]
 
